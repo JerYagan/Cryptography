@@ -25,7 +25,6 @@ function bitsToBytes(bits) {
   return new Uint8Array(bytes);
 }
 
-// Deterministic hash → numeric seed
 function hashStringToSeed(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -65,7 +64,6 @@ function drawJulia(message) {
   return img;
 }
 
-// HSV → RGB
 function hsvToRgb(h, s, v) {
   const c = v * s;
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
@@ -80,7 +78,6 @@ function hsvToRgb(h, s, v) {
   return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
 }
 
-// LSB embedding
 function embedMessage(imgData, message) {
   const bytes = textToBytes(message);
   const lengthBits = bytesToBits(
@@ -122,7 +119,6 @@ function extractMessage(imgData) {
   return bytesToText(msgBytes);
 }
 
-// Event: Encode
 document.getElementById("encodeBtn").onclick = () => {
   const text = document.getElementById("textInput").value.trim();
   if (!text) return alert("Please enter text.");
@@ -130,7 +126,6 @@ document.getElementById("encodeBtn").onclick = () => {
   embedMessage(img, text);
 };
 
-// Event: Save
 document.getElementById("saveBtn").onclick = () => {
   const a = document.createElement("a");
   a.href = canvas.toDataURL("image/png");
@@ -138,7 +133,6 @@ document.getElementById("saveBtn").onclick = () => {
   a.click();
 };
 
-// Event: Decode
 document.getElementById("decodeBtn").onclick = () => {
   const file = document.getElementById("fileInput").files[0];
   if (!file) return alert("Upload an image first.");
@@ -153,7 +147,6 @@ document.getElementById("decodeBtn").onclick = () => {
   img.src = URL.createObjectURL(file);
 };
 
-// Hover effect
 const controls = document.querySelector('.controls');
 
 controls.addEventListener('mousemove', e => {
@@ -169,7 +162,6 @@ controls.addEventListener('mouseleave', () => {
   controls.style.setProperty('--y', `50%`);
 });
 
-// File input label click
 const fileInput = document.getElementById('fileInput');
 const fileNameSpan = document.querySelector('.file-name');
 
