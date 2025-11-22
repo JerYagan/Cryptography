@@ -2,64 +2,245 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <link rel="stylesheet" href="./styles.css" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-    <title>Fractal Text Cipher</title>
+    <title>Fractal Bloom Cipher</title>
 </head>
 
 <body>
-    <div class="main">
-        <div class="container">
-            <div class="controls">
-                <div class="logo">
-                    <img src="./assets/logo.svg" alt="Fractal Logo" width="36" height="auto">
-                    <p>Fractal Bloom Cipher</p>
-                </div>
-
-                <div class="encode-container">
-                    <div>
-                        <h4>Encode</h4>
-                        <p class="subtitle">Enter a plain text to convert into a fractal</p>
-                    </div>
-
-                    <input type="text" id="textInput" placeholder="Type message to encode..."></input>
-
-                    <div class="buttons-group">
-                        <button id="encodeBtn"><span class="material-symbols-outlined">
-                            convert_to_text
-                            </span>Encode</button>
-                        <button id="saveBtn" class="saveBtn"><span class="material-symbols-outlined">
-                                download
-                            </span>Save PNG</button>
-                    </div>
-                </div>
-
-                <div class="decode-container">
-                    <div>
-                        <h4>Decode</h4>
-                        <p class="subtitle">Select an image to decode</p>
-                    </div>
-                    <label for="fileInput" class="file-label" id="fileLabel">
-                    <span class="material-symbols-outlined">upload_file</span>
-                    <span class="file-name">Choose Image</span>
-                    </label>
-                    <input type="file" id="fileInput" accept="image/png,image/*">
-                    <button id="decodeBtn"><span class="material-symbols-outlined">
-                        scan
-                        </span>Decode</button>
-                    <div>
-                        <p>Decoded text:</p>
-                        <p id="decodedText" class="decoded-text"></p>
-                    </div>
-
+    <div class="app-shell">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="logo-row">
+                <img src="./assets/logo.svg" alt="Fractal Logo" width="40" height="40" />
+                <div>
+                    <p class="app-title">Fractal Bloom Cipher</p>
+                    <p class="app-subtitle">AES-GCM encryption baked into fractal art.</p>
                 </div>
             </div>
 
-            <canvas id="fractalCanvas" width="500" height="500"></canvas>
-        </div>
-    </div>
+            <div class="sidebar-section">
+                <p class="section-label">Fractal engine</p>
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="material-symbols-outlined">auto_awesome</span>
+                        <div>
+                            <p class="toggle-title">Live WebGL animation</p>
+                            <p class="toggle-caption">Turn off to freeze on a single encoded frame.</p>
+                        </div>
+                    </div>
+                    <button type="button" id="animationToggle" class="switch switch-on" aria-label="Toggle animation">
+                        <span class="switch-knob"></span>
+                    </button>
+                    <span class="switch-state" id="animationToggleLabel">On</span>
+                </div>
+            </div>
 
+            <div class="sidebar-footer">
+                <p class="footer-text">
+                    Fractals are rendered in WebGL and the ciphertext is hidden in the pixel LSBs. Exported PNGs look
+                    like normal art but carry your secret.
+                </p>
+            </div>
+        </aside>
+
+        <!-- MAIN WORKSPACE -->
+        <main class="workspace">
+            <div class="section-divider">
+                <!-- FRACTAL CANVAS FIRST -->
+                <section class="canvas-card">
+                    <div class="canvas-header">
+                        <div>
+                            <h4>Fractal preview</h4>
+                            <p class="subtitle">
+                                Live WebGL Julia set. When a message is encoded, its ciphertext is embedded in the
+                                pixels.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="canvas-wrapper">
+                        <canvas id="fractalCanvas" width="500" height="500"></canvas>
+                    </div>
+                </section>
+
+                <!-- CONTROLS NEXT -->
+                <section class="card controls">
+                    <div class="encode-container">
+                        <div class="section-header">
+                            <h4>Encode</h4>
+                            <p class="subtitle">Turn your plain text into an encrypted fractal image.</p>
+                        </div>
+
+                        <div class="field">
+                            <label class="field-label" for="textInput">Plain text</label>
+                            <input type="text" id="textInput" class="field-input"
+                                placeholder="Type message to encode..." />
+                        </div>
+
+                        <div class="field">
+                            <label class="field-label" for="passwordInput">Password</label>
+                            <div class="field-input-row">
+                                <input type="password" id="passwordInput" class="field-input"
+                                    placeholder="Enter password..." />
+                                <button type="button" id="passwordToggle" class="icon-button"
+                                    aria-label="Toggle password visibility">
+                                    <span class="material-symbols-outlined" id="passwordToggleIcon">
+                                        visibility_off
+                                    </span>
+                                </button>
+                            </div>
+                            <p class="field-helper">
+                                Used to derive the AES-GCM key and fractal seed. You’ll need the same password to
+                                decode.
+                            </p>
+                        </div>
+
+                        <div class="buttons-group">
+                            <button id="encodeBtn">
+                                <span class="material-symbols-outlined">lock</span>
+                                Encode & preview
+                            </button>
+                            <button id="saveBtn" class="saveBtn">
+                                <span class="material-symbols-outlined">download</span>
+                                Save PNG
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="decode-container">
+                        <div class="section-header">
+                            <h4>Decode</h4>
+                            <p class="subtitle">Load an encoded fractal PNG and recover the hidden text.</p>
+                        </div>
+
+                        <label for="fileInput" class="file-label" id="fileLabel">
+                            <span class="material-symbols-outlined">upload_file</span>
+                            <span class="file-name">Choose image</span>
+                        </label>
+                        <input type="file" id="fileInput" accept="image/png,image/*" />
+
+                        <button id="decodeBtn" class="decodeButton">
+                            <span class="material-symbols-outlined">scan</span>
+                            Decode
+                        </button>
+
+                        <div class="decoded-block">
+                            <p class="decoded-label">Decoded text</p>
+                            <p id="decodedText" class="decoded-text"></p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <!-- METADATA AT THE BOTTOM -->
+            <section class="card meta-card">
+                <h4>Cipher metadata</h4>
+                <p class="subtitle">Snapshot of the latest encode/decode operation.</p>
+
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <p class="meta-label">Status</p>
+                        <p class="meta-value" id="metaStatus">Idle</p>
+                    </div>
+                    <div class="meta-item">
+                        <p class="meta-label">Encryption</p>
+                        <p class="meta-value" id="metaEncryption">AES-GCM + LSB steganography</p>
+                    </div>
+                    <div class="meta-item">
+                        <p class="meta-label">Message length</p>
+                        <p class="meta-value" id="metaLength">–</p>
+                    </div>
+                    <div class="meta-item">
+                        <p class="meta-label">Fractal seed</p>
+                        <p class="meta-value" id="metaSeed">–</p>
+                    </div>
+                    <div class="meta-item meta-span">
+                        <p class="meta-label">Last activity</p>
+                        <p class="meta-value" id="metaTime">–</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- HOW IT WORKS SECTION -->
+            <section class="card how-card">
+                <h4>How Fractal Bloom Cipher Works</h4>
+                <p class="subtitle">
+                    A simple walkthrough of how your message turns into a fractal image — and back.
+                </p>
+
+                <div class="how-grid">
+                    <div class="how-item">
+                        <p class="how-title">1. Convert Text → Bytes</p>
+                        <p class="how-desc">
+                            Your message is turned into raw bytes. This is the basic data computers understand.
+                        </p>
+                    </div>
+
+                    <div class="how-item">
+                        <p class="how-title">2. Create AES Key From Password</p>
+                        <p class="how-desc">
+                            Your password is stretched using PBKDF2 (slow hashing) to generate a strong AES-256 key.
+                        </p>
+                    </div>
+
+                    <div class="how-item">
+                        <p class="how-title">3. Encrypt the Message</p>
+                        <p class="how-desc">
+                            AES-GCM locks your bytes into unreadable ciphertext. Without the password, it’s impossible
+                            to recover.
+                        </p>
+                    </div>
+
+                    <div class="how-item">
+                        <p class="how-title">4. Generate Fractal From Password</p>
+                        <p class="how-desc">
+                            The password also produces a numeric seed. This seed shapes the Julia fractal’s colors and
+                            movement.
+                        </p>
+                    </div>
+
+                    <div class="how-item">
+                        <p class="how-title">5. Render the Fractal</p>
+                        <p class="how-desc">
+                            WebGL draws a smooth animated fractal using the seed. This part is purely visual — no data
+                            hidden yet.
+                        </p>
+                    </div>
+
+                    <div class="how-item">
+                        <p class="how-title">6. Hide Ciphertext in Pixels</p>
+                        <p class="how-desc">
+                            The encrypted bytes are embedded inside the image by toggling tiny bits in pixel colors (LSB
+                            steganography).
+                        </p>
+                    </div>
+
+                    <div class="how-item">
+                        <p class="how-title">7. Save as PNG</p>
+                        <p class="how-desc">
+                            The result looks like a normal fractal image, but it secretly contains your encrypted data.
+                        </p>
+                    </div>
+
+                    <div class="how-item">
+                        <p class="how-title">8. Decode + Decrypt</p>
+                        <p class="how-desc">
+                            When decoding, the app extracts the hidden bytes and decrypts them using the same password.
+                        </p>
+                    </div>
+                </div>
+
+                <p class="how-footer">
+                    In short: <strong>your message is encrypted with AES</strong>, then
+                    <strong>hidden inside the fractal’s pixels</strong>.
+                    Only the correct password can unlock it.
+                </p>
+            </section>
+        </main>
+    </div>
 
     <script src="./script.js"></script>
 </body>
