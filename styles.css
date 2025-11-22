@@ -11,6 +11,10 @@ body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+ul, li {
+ list-style: none;
+}
+
 /* LAYOUT ---------------------------------------------------------------- */
 
 .app-shell {
@@ -539,7 +543,7 @@ input[type="file"] {
     gap: 2rem;
 }
 
-/* HOW IT WORKS SECTION -------------------------------------------------- */
+/* HOW IT WORKS ------------------------------------------------------ */
 
 .how-card {
     margin-top: 1rem;
@@ -552,9 +556,60 @@ input[type="file"] {
     gap: 1.3rem;
 }
 
+/* FLOW DIAGRAM */
+.flow-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    margin: 0.5rem 0 1.2rem;
+    flex-wrap: wrap;
+}
+
+.flow-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #cbd5e1;
+    font-size: 0.75rem;
+}
+
+.flow-icon {
+    font-size: 1.6rem;
+    color: #80ffdb;
+    margin-bottom: 0.1rem;
+}
+
+.flow-arrow {
+    width: 24px;
+    height: 2px;
+    background: linear-gradient(90deg, #22c55e, #0ea5e9);
+    position: relative;
+    animation: arrowPulse 1.4s infinite ease-in-out;
+}
+.flow-arrow::after {
+    content: "";
+    position: absolute;
+    right: -4px;
+    top: -3px;
+    width: 0;
+    height: 0;
+    border-left: 6px solid #22c55e;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+}
+
+@keyframes arrowPulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+}
+
+
+/* GRID */
 .how-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); /* ALWAYS 2 COLUMNS */
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem 1.2rem;
 }
 
@@ -566,22 +621,62 @@ input[type="file"] {
 }
 
 .how-title {
-    font-size: 0.9rem;
     color: #80ffdb;
-    font-weight: 600;
+    font-size: 0.9rem;
     margin-bottom: 0.3rem;
+    font-weight: 600;
 }
 
 .how-desc {
-    font-size: 0.8rem;
     color: #cbd5e1;
+    font-size: 0.8rem;
     line-height: 1.45;
 }
 
 .how-footer {
-    font-size: 0.82rem;
     color: #9ca3af;
+    font-size: 0.82rem;
     border-top: 1px solid #111827;
-    padding-top: 1rem;
+    padding-top: 0.9rem;
+}
+
+
+/* ADVANCED SECTION */
+.advanced-card {
+    margin-top: 1rem;
+    border: 1px solid #1f2937;
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    background: #0b1120;
+}
+
+.advanced-card summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #80ffdb;
+    font-weight: 600;
+}
+
+.advanced-content {
+    margin-top: 0.9rem;
+    color: #cbd5e1;
+    font-size: 0.82rem;
     line-height: 1.45;
+}
+
+.advanced-content h5 {
+    margin-top: 1rem;
+    margin-bottom: 0.3rem;
+    color: #38bdf8;
+    font-size: 0.9rem;
+}
+
+.code {
+    font-family: monospace;
+    font-size: 0.75rem;
+    background: #111827;
+    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    margin: 0.3rem 0;
+    border: 1px solid #1f2937;
 }
