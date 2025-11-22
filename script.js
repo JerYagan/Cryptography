@@ -1,4 +1,5 @@
-// === DOM: canvas & WebGL ==================================================
+// ========= DOM HOOKS =========
+
 const canvas = document.getElementById("fractalCanvas");
 const gl = canvas.getContext("webgl");
 const w = canvas.width;
@@ -9,16 +10,51 @@ if (!gl) {
   throw new Error("WebGL not supported");
 }
 
-// === Shaders ==============================================================
+// Encode/Decode UI
+const textInput = document.getElementById("textInput");
+const passwordInput = document.getElementById("passwordInput");
+const passwordToggle = document.getElementById("passwordToggle");
+const passwordToggleIcon = document.getElementById("passwordToggleIcon");
+
+const encodeBtn = document.getElementById("encodeBtn");
+const saveBtn = document.getElementById("saveBtn");
+const decodeBtn = document.getElementById("decodeBtn");
+
+const fileInput = document.getElementById("fileInput");
+const fileNameSpan = document.querySelector(".file-name");
+const decodedTextEl = document.getElementById("decodedText");
+
+// Optional decode password (if you add it in HTML)
+const decodePasswordInput = document.getElementById("decodePasswordInput");
+const decodePasswordToggle = document.getElementById("decodePasswordToggle");
+const decodePasswordToggleIcon = document.getElementById("decodePasswordToggleIcon");
+
+// Sidebar animation toggle
+const animationToggle = document.getElementById("animationToggle");
+const animationToggleLabel = document.getElementById("animationToggleLabel");
+
+// Metadata
+const metaStatus = document.getElementById("metaStatus");
+const metaEncryption = document.getElementById("metaEncryption");
+const metaLength = document.getElementById("metaLength");
+const metaSeed = document.getElementById("metaSeed");
+const metaTime = document.getElementById("metaTime");
+
+// Controls card (for gradient follow)
+const controlsCard = document.querySelector(".controls");
+
+// ========= WEBGL SHADERS =========
+
 const vertexShaderSource = `
   attribute vec2 a_position;
   varying vec2 v_uv;
   void main() {
-      v_uv = a_position * 0.5 + 0.5;
-      gl_Position = vec4(a_position, 0.0, 1.0);
+    v_uv = a_position * 0.5 + 0.5;
+    gl_Position = vec4(a_position, 0.0, 1.0);
   }
 `;
 
+// Smooth, neon Julia shader (Option A)
 const fragmentShaderSource = `
 precision highp float;
 
@@ -145,17 +181,16 @@ void main() {
 }
 `;
 
+// ========= WEBGL SETUP =========
 
-// === WebGL boilerplate ===================================================
-function createShader(gl, type, source) {
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPLETE_STATUS) &&
-      !gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    console.error(gl.getShaderInfoLog(shader));
-    gl.deleteShader(shader);
-    return null;
+function createShader(glCtx, type, source) {
+  const shader = glCtx.createShader(type);
+  glCtx.shaderSource(shader, source);
+  glCtx.compileShader(shader);
+  if (!glCtx.getShaderParameter(shader, glCtx.COMPILE_STATUS)) {
+    console.error(glCtx.getShaderInfoLog(shader));
+    glCtx.deleteShader(shader);
+    throw new Error("Shader compile failed");
   }
   return shader;
 }
@@ -170,7 +205,10 @@ gl.linkProgram(program);
 
 if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
   console.error(gl.getProgramInfoLog(program));
+  throw new Error("Program link failed");
 }
+
+gl.useProgram(program);
 
 const positionBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -186,20 +224,24 @@ const cLocation = gl.getUniformLocation(program, "u_c");
 const seedLocation = gl.getUniformLocation(program, "u_seed");
 const timeLocation = gl.getUniformLocation(program, "u_time");
 
-// === Text / bytes helpers ===============================================
-function textToBytes(text) {
-  return new TextEncoder().encode(text);
+// ========= UTILS: BYTES / BITS / TEXT =========
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+function textToBytes(str) {
+  return textEncoder.encode(str);
 }
 
 function bytesToText(bytes) {
-  return new TextDecoder().decode(bytes);
+  return textDecoder.decode(bytes);
 }
 
 function bytesToBits(bytes) {
   const bits = [];
-  for (let byte of bytes) {
+  for (let b of bytes) {
     for (let i = 7; i >= 0; i--) {
-      bits.push((byte >> i) & 1);
+      bits.push((b >> i) & 1);
     }
   }
   return bits;
@@ -217,19 +259,7 @@ function bitsToBytes(bits) {
   return new Uint8Array(bytes);
 }
 
-function concatBytes(...arrays) {
-  let total = 0;
-  for (const a of arrays) total += a.length;
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const a of arrays) {
-    out.set(a, offset);
-    offset += a.length;
-  }
-  return out;
-}
-
-// === Hashing for fractal seed ===========================================
+// Hash string → seed in [0,1]
 function hashStringToSeed(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -238,101 +268,7 @@ function hashStringToSeed(str) {
   return hash / 0xffffffff;
 }
 
-// === AES-GCM + PBKDF2 encryption ========================================
-async function deriveAesKey(passwordBytes, salt, usage) {
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    passwordBytes,
-    "PBKDF2",
-    false,
-    ["deriveKey"]
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: 100_000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    {
-      name: "AES-GCM",
-      length: 256,
-    },
-    false,
-    [usage]
-  );
-}
-
-// Returns: [salt(16) | iv(12) | ciphertext(...)]
-async function encryptMessage(plaintext, password) {
-  const textBytes = textToBytes(plaintext);
-  const passwordBytes = textToBytes(password);
-
-  const salt = new Uint8Array(16);
-  crypto.getRandomValues(salt);
-
-  const key = await deriveAesKey(passwordBytes, salt, "encrypt");
-
-  const iv = new Uint8Array(12);
-  crypto.getRandomValues(iv);
-
-  const ciphertextBuf = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    textBytes
-  );
-
-  const ciphertext = new Uint8Array(ciphertextBuf);
-  return concatBytes(salt, iv, ciphertext);
-}
-
-async function decryptMessage(payloadBytes, password) {
-  if (payloadBytes.length < 16 + 12 + 1) {
-    throw new Error("Invalid encrypted payload.");
-  }
-
-  const salt = payloadBytes.slice(0, 16);
-  const iv = payloadBytes.slice(16, 28);
-  const ciphertext = payloadBytes.slice(28);
-
-  const passwordBytes = textToBytes(password);
-  const key = await deriveAesKey(passwordBytes, salt, "decrypt");
-
-  const plaintextBuf = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    key,
-    ciphertext
-  );
-
-  return bytesToText(new Uint8Array(plaintextBuf));
-}
-
-// === Fractal rendering ===================================================
-function renderJulia(seed, timeSeconds = 0) {
-  gl.viewport(0, 0, w, h);
-  gl.clearColor(0, 0, 0, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-
-  gl.useProgram(program);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.enableVertexAttribArray(positionLocation);
-  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-  const baseCx = Math.sin(seed * 6.28318) * 0.7;
-  const baseCy = Math.cos(seed * 6.28318) * 0.7;
-  const cx = baseCx + 0.15 * Math.sin(timeSeconds * 0.4 + seed * 10.0);
-  const cy = baseCy + 0.15 * Math.cos(timeSeconds * 0.6 + seed * 5.0);
-
-  gl.uniform2f(resolutionLocation, w, h);
-  gl.uniform2f(cLocation, cx, cy);
-  gl.uniform1f(seedLocation, seed);
-  gl.uniform1f(timeLocation, timeSeconds);
-
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
-}
+// ========= STEGO: EMBED / EXTRACT =========
 
 function getCanvasImageDataFlipped() {
   const pixels = new Uint8Array(w * h * 4);
@@ -352,34 +288,37 @@ function getCanvasImageDataFlipped() {
   return flipped;
 }
 
-// === Steganography: embed/extract bytes ==================================
-function embedBytesIntoPixels(pixels, payloadBytes) {
-  const len = payloadBytes.length;
-  const lengthBytes = new Uint8Array([
-    (len >>> 24) & 255,
-    (len >>> 16) & 255,
-    (len >>> 8) & 255,
-    len & 255,
-  ]);
+// Embed payload bytes into pixel RGB LSBs.
+// Layout: [4-byte length][payload bytes...]
+function embedBytesIntoPixels(pixels, payload) {
+  const length = payload.length;
+  const header = new Uint8Array(4);
+  header[0] = (length >>> 24) & 0xff;
+  header[1] = (length >>> 16) & 0xff;
+  header[2] = (length >>> 8) & 0xff;
+  header[3] = length & 0xff;
 
-  const lengthBits = bytesToBits(lengthBytes);
-  const payloadBits = bytesToBits(payloadBytes);
-  const allBits = lengthBits.concat(payloadBits);
+  const all = new Uint8Array(4 + length);
+  all.set(header, 0);
+  all.set(payload, 4);
 
-  const capacity = (pixels.length / 4) * 3; // 3 channels per pixel
-  if (allBits.length > capacity) {
-    throw new Error("Message too long for this canvas size.");
+  const bits = bytesToBits(all);
+  const capacityBits = Math.floor(pixels.length / 4) * 3;
+  if (bits.length > capacityBits) {
+    throw new Error("Message too large for this image resolution.");
   }
 
   let bitIndex = 0;
-  for (let i = 0; i < pixels.length && bitIndex < allBits.length; i += 4) {
-    for (let j = 0; j < 3 && bitIndex < allBits.length; j++) {
-      pixels[i + j] = (pixels[i + j] & 0xfe) | allBits[bitIndex++];
+  for (let i = 0; i < pixels.length && bitIndex < bits.length; i += 4) {
+    for (let j = 0; j < 3 && bitIndex < bits.length; j++) {
+      pixels[i + j] = (pixels[i + j] & 0xfe) | bits[bitIndex++];
     }
   }
+
+  return pixels;
 }
 
-function extractBytesFromPixels(pixels) {
+function extractPayloadFromPixels(pixels) {
   const bits = [];
   for (let i = 0; i < pixels.length; i += 4) {
     for (let j = 0; j < 3; j++) {
@@ -387,138 +326,204 @@ function extractBytesFromPixels(pixels) {
     }
   }
 
-  const lengthBits = bits.slice(0, 32);
-  const lenBytes = bitsToBytes(lengthBits);
-  const msgLen =
-    (lenBytes[0] << 24) |
-    (lenBytes[1] << 16) |
-    (lenBytes[2] << 8) |
-    lenBytes[3];
+  const headerBits = bits.slice(0, 32);
+  const headerBytes = bitsToBytes(headerBits);
+  const length =
+    (headerBytes[0] << 24) |
+    (headerBytes[1] << 16) |
+    (headerBytes[2] << 8) |
+    headerBytes[3];
 
-  if (msgLen <= 0 || msgLen > 1_000_000) {
-    throw new Error("Invalid or no message found.");
+  if (length <= 0 || length > 1000000) {
+    throw new Error("Invalid or no embedded message.");
   }
 
-  const totalMsgBits = msgLen * 8;
-  if (32 + totalMsgBits > bits.length) {
-    throw new Error("Message truncated or corrupt.");
-  }
-
-  const msgBits = bits.slice(32, 32 + totalMsgBits);
-  return bitsToBytes(msgBits);
+  const payloadBits = bits.slice(32, 32 + length * 8);
+  const payloadBytes = bitsToBytes(payloadBits);
+  return payloadBytes;
 }
 
-// === State & offscreen canvas ===========================================
-let animationEnabled = true;
+// ========= CRYPTO: AES-GCM + PBKDF2 =========
+
+const SALT_LEN = 16;
+const IV_LEN = 12;
+const PBKDF2_ITER = 100000;
+
+function getRandomBytes(len) {
+  const arr = new Uint8Array(len);
+  crypto.getRandomValues(arr);
+  return arr;
+}
+
+async function deriveKey(password, salt) {
+  const pwBytes = textToBytes(password);
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    pwBytes,
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  const key = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: PBKDF2_ITER,
+      hash: "SHA-256",
+    },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+  return key;
+}
+
+// Encrypt plaintext → Uint8Array [salt | iv | ciphertext]
+async function encryptMessage(plaintext, password) {
+  const salt = getRandomBytes(SALT_LEN);
+  const iv = getRandomBytes(IV_LEN);
+  const key = await deriveKey(password, salt);
+
+  const data = textToBytes(plaintext);
+  const ciphertextBuf = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    data
+  );
+
+  const ciphertext = new Uint8Array(ciphertextBuf);
+  const out = new Uint8Array(SALT_LEN + IV_LEN + ciphertext.length);
+  out.set(salt, 0);
+  out.set(iv, SALT_LEN);
+  out.set(ciphertext, SALT_LEN + IV_LEN);
+  return out;
+}
+
+// Decrypt Uint8Array [salt | iv | ciphertext] → plaintext string
+async function decryptMessage(payload, password) {
+  if (payload.length <= SALT_LEN + IV_LEN) {
+    throw new Error("Invalid payload");
+  }
+
+  const salt = payload.slice(0, SALT_LEN);
+  const iv = payload.slice(SALT_LEN, SALT_LEN + IV_LEN);
+  const ciphertext = payload.slice(SALT_LEN + IV_LEN);
+
+  const key = await deriveKey(password, salt);
+  const plaintextBuf = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    ciphertext
+  );
+
+  return bytesToText(new Uint8Array(plaintextBuf));
+}
+
+// ========= FRACTAL RENDERING =========
+
 let animationId = null;
 let startTime = null;
+let animationEnabled = true;
 
-let currentSeed = hashStringToSeed("FractalBloom");
+let currentSeed = 0;
 let currentPayload = null; // Uint8Array of encrypted data
 let latestEmbeddedPixels = null;
 
-// hidden canvas used only for saving
+// Offscreen canvas for stego preview / saving
 const stegCanvas = document.createElement("canvas");
 stegCanvas.width = w;
 stegCanvas.height = h;
 const stegCtx = stegCanvas.getContext("2d", { willReadFrequently: true });
 
-// metadata state
-let metadata = {
-  status: "Idle",
-  length: 0,
-  seed: null,
-  encodedAt: null,
-  encryption: "AES-GCM + LSB steganography",
-};
+function renderJulia(seed, timeSeconds) {
+  gl.viewport(0, 0, w, h);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
 
-// === DOM references ======================================================
-const textInput = document.getElementById("textInput");
-const passwordInput = document.getElementById("passwordInput");
-const encodeBtn = document.getElementById("encodeBtn");
-const saveBtn = document.getElementById("saveBtn");
-const decodeBtn = document.getElementById("decodeBtn");
-const fileInput = document.getElementById("fileInput");
-const decodedTextEl = document.getElementById("decodedText");
+  gl.useProgram(program);
 
-const passwordToggle = document.getElementById("passwordToggle");
-const passwordToggleIcon = document.getElementById("passwordToggleIcon");
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.enableVertexAttribArray(positionLocation);
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-const animationToggle = document.getElementById("animationToggle");
-const animationToggleLabel = document.getElementById("animationToggleLabel");
+  // Base c influenced by seed
+  const baseCx = Math.sin(seed * 6.28318) * 0.7;
+  const baseCy = Math.cos(seed * 6.28318) * 0.7;
+  const cx = baseCx + 0.15 * Math.sin(timeSeconds * 0.4 + seed * 10.0);
+  const cy = baseCy + 0.15 * Math.cos(timeSeconds * 0.6 + seed * 5.0);
 
-// metadata DOM
-const metaStatusEl = document.getElementById("metaStatus");
-const metaLengthEl = document.getElementById("metaLength");
-const metaSeedEl = document.getElementById("metaSeed");
-const metaTimeEl = document.getElementById("metaTime");
-const metaEncryptionEl = document.getElementById("metaEncryption");
+  gl.uniform2f(resolutionLocation, w, h);
+  gl.uniform2f(cLocation, cx, cy);
+  gl.uniform1f(seedLocation, seed);
+  gl.uniform1f(timeLocation, timeSeconds);
 
-let hasUploadedFile = false;
-
-// === Metadata helpers ====================================================
-function formatDateTime(date) {
-  if (!date) return "–";
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
 
-function updateMetadata() {
-  metaStatusEl.textContent = metadata.status || "–";
-  metaLengthEl.textContent =
-    metadata.length && metadata.length > 0 ? `${metadata.length} chars` : "–";
-  metaSeedEl.textContent =
-    metadata.seed !== null ? metadata.seed.toFixed(6) : "–";
-  metaTimeEl.textContent = formatDateTime(metadata.encodedAt);
-  metaEncryptionEl.textContent = metadata.encryption || "–";
-}
-
-// === Rendering frames + animation loop ==================================
+// Render one frame (animated or static) and update stego canvas
 function renderFrame(elapsedSeconds = 0) {
-  // draw fractal to visible WebGL canvas
-  renderJulia(currentSeed, elapsedSeconds);
+  const t = animationEnabled ? elapsedSeconds : 0;
+  renderJulia(currentSeed, t);
 
-  // if we have payload, embed into a copy and stash for saving
   if (currentPayload) {
     const pixels = getCanvasImageDataFlipped();
     try {
       embedBytesIntoPixels(pixels, currentPayload);
+      latestEmbeddedPixels = new Uint8Array(pixels);
+
+      const imageData = stegCtx.createImageData(w, h);
+      imageData.data.set(pixels);
+      stegCtx.putImageData(imageData, 0, 0);
     } catch (err) {
       console.error(err);
-      alert(err.message);
-      return;
+      metaStatus.textContent = "Error: " + err.message;
     }
-
-    latestEmbeddedPixels = new Uint8Array(pixels);
-
-    const imageData = stegCtx.createImageData(w, h);
-    imageData.data.set(pixels);
-    stegCtx.putImageData(imageData, 0, 0);
-  } else {
-    latestEmbeddedPixels = null;
   }
 }
 
-function animationLoop(timeMs) {
-  if (!animationEnabled) {
-    animationId = null;
-    return;
-  }
-  if (startTime === null) startTime = timeMs;
-  const elapsed = (timeMs - startTime) / 1000;
+function animationLoop(timestamp) {
+  if (!startTime) startTime = timestamp;
+  const elapsed = (timestamp - startTime) / 1000;
+
   renderFrame(elapsed);
-  animationId = requestAnimationFrame(animationLoop);
+
+  if (animationEnabled) {
+    animationId = requestAnimationFrame(animationLoop);
+  } else {
+    animationId = null;
+  }
 }
 
-// === UI helpers: animation toggle & password toggle ======================
+// ========= UI HANDLERS =========
+
+// Encode password eye toggle
+if (passwordToggle && passwordToggleIcon) {
+  passwordToggle.addEventListener("click", () => {
+    if (!passwordInput) return;
+    passwordInput.type =
+      passwordInput.type === "password" ? "text" : "password";
+    passwordToggleIcon.textContent =
+      passwordInput.type === "password" ? "visibility_off" : "visibility";
+  });
+}
+
+// Decode password eye toggle (optional, only if field exists)
+if (decodePasswordToggle && decodePasswordToggleIcon && decodePasswordInput) {
+  decodePasswordToggle.addEventListener("click", () => {
+    decodePasswordInput.type =
+      decodePasswordInput.type === "password" ? "text" : "password";
+    decodePasswordToggleIcon.textContent =
+      decodePasswordInput.type === "password"
+        ? "visibility_off"
+        : "visibility";
+  });
+}
+
+// Animation toggle
 function updateAnimationToggleUI() {
+  if (!animationToggle || !animationToggleLabel) return;
   if (animationEnabled) {
     animationToggle.classList.add("switch-on");
     animationToggleLabel.textContent = "On";
@@ -528,180 +533,245 @@ function updateAnimationToggleUI() {
   }
 }
 
-passwordToggle.addEventListener("click", () => {
-  const isPassword = passwordInput.type === "password";
-  passwordInput.type = isPassword ? "text" : "password";
-  passwordToggleIcon.textContent = isPassword ? "visibility" : "visibility_off";
-});
-
-// animation toggle
-animationToggle.addEventListener("click", () => {
-  animationEnabled = !animationEnabled;
-  if (!animationEnabled && animationId) {
-    cancelAnimationFrame(animationId);
-    animationId = null;
-  } else if (animationEnabled) {
-    startTime = null;
-    animationLoop(0);
-  }
-  updateAnimationToggleUI();
-});
-
-// === Encode handler ======================================================
-encodeBtn.onclick = async () => {
-  const text = textInput.value.trim();
-  const password = passwordInput.value.trim();
-
-  if (!text) {
-    alert("Please enter text to encode.");
-    return;
-  }
-  if (!password) {
-    alert("Please enter a password.");
-    return;
-  }
-
-  try {
-    const encryptedPayload = await encryptMessage(text, password);
-    currentPayload = encryptedPayload;
-    currentSeed = hashStringToSeed(password);
-
-    metadata = {
-      ...metadata,
-      status: "Encrypted & embedded into fractal",
-      length: text.length,
-      seed: currentSeed,
-      encodedAt: new Date(),
-    };
-    updateMetadata();
-
-    decodedTextEl.textContent = "";
+if (animationToggle) {
+  animationToggle.addEventListener("click", () => {
+    animationEnabled = !animationEnabled;
+    updateAnimationToggleUI();
 
     if (animationEnabled) {
-      if (animationId) cancelAnimationFrame(animationId);
+      // restart loop
       startTime = null;
-      animationLoop(0);
+      if (!animationId) animationLoop(0);
     } else {
-      // static frame only
+      // stop loop & render static frame
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
       renderFrame(0);
     }
-  } catch (err) {
-    console.error(err);
-    alert("Failed to encrypt or encode message.");
-  }
-};
-
-// === Save PNG handler ====================================================
-saveBtn.onclick = () => {
-  if (!currentPayload || !latestEmbeddedPixels) {
-    alert("Please encode a message first.");
-    return;
-  }
-
-  const saveCanvas = document.createElement("canvas");
-  saveCanvas.width = w;
-  saveCanvas.height = h;
-  const saveCtx = saveCanvas.getContext("2d");
-
-  const imageData = saveCtx.createImageData(w, h);
-  imageData.data.set(latestEmbeddedPixels);
-  saveCtx.putImageData(imageData, 0, 0);
-
-  const a = document.createElement("a");
-  a.href = saveCanvas.toDataURL("image/png");
-  a.download = "fractal_cipher.png";
-  a.click();
-};
-
-// === Decode handler ======================================================
-decodeBtn.onclick = async () => {
-  if (!hasUploadedFile || !fileInput.files[0]) {
-    alert("Please upload an image first.");
-    return;
-  }
-
-  const password = passwordInput.value.trim();
-  if (!password) {
-    alert("Please enter the password to decode.");
-    return;
-  }
-
-  const file = fileInput.files[0];
-  const img = new Image();
-
-  img.onload = async () => {
-    const decodeCanvas = document.createElement("canvas");
-    decodeCanvas.width = w;
-    decodeCanvas.height = h;
-    const decodeCtx = decodeCanvas.getContext("2d");
-
-    decodeCtx.drawImage(img, 0, 0, w, h);
-    const imageData = decodeCtx.getImageData(0, 0, w, h);
-
-    try {
-      const payloadBytes = extractBytesFromPixels(imageData.data);
-      const plaintext = await decryptMessage(payloadBytes, password);
-      decodedTextEl.textContent = plaintext;
-
-      metadata = {
-        ...metadata,
-        status: "Decrypted successfully",
-        length: plaintext.length,
-        encodedAt: new Date(),
-      };
-      updateMetadata();
-    } catch (err) {
-      console.error(err);
-      alert("Wrong password or corrupted image.");
-      decodedTextEl.textContent = "";
-      metadata = {
-        ...metadata,
-        status: "Decode error / wrong password",
-        encodedAt: new Date(),
-      };
-      updateMetadata();
-    }
-  };
-
-  img.onerror = () => {
-    alert("Failed to load image. Please try another file.");
-  };
-
-  img.src = URL.createObjectURL(file);
-};
-
-// === File input change ===================================================
-fileInput.addEventListener("change", () => {
-  const fileNameSpan = document.querySelector(".file-name");
-  if (fileInput.files.length > 0) {
-    fileNameSpan.textContent = fileInput.files[0].name;
-    hasUploadedFile = true;
-  } else {
-    fileNameSpan.textContent = "Choose image";
-    hasUploadedFile = false;
-  }
-});
-
-// === Gradient-follow effect on controls ==================================
-const controlsEl = document.querySelector(".controls");
-if (controlsEl) {
-  controlsEl.addEventListener("mousemove", (e) => {
-    const rect = controlsEl.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    controlsEl.style.setProperty("--x", `${x}%`);
-    controlsEl.style.setProperty("--y", `${y}%`);
-  });
-
-  controlsEl.addEventListener("mouseleave", () => {
-    controlsEl.style.setProperty("--x", `50%`);
-    controlsEl.style.setProperty("--y", `50%`);
   });
 }
 
-// === Initial render ======================================================
-updateMetadata();
-renderFrame(0);
-animationEnabled = true;
+// Controls card gradient follow
+if (controlsCard) {
+  controlsCard.addEventListener("mousemove", (e) => {
+    const rect = controlsCard.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    controlsCard.style.setProperty("--x", `${x}%`);
+    controlsCard.style.setProperty("--y", `${y}%`);
+  });
+  controlsCard.addEventListener("mouseleave", () => {
+    controlsCard.style.setProperty("--x", `50%`);
+    controlsCard.style.setProperty("--y", `50%`);
+  });
+}
+
+// File input label
+let hasUploadedFile = false;
+if (fileInput && fileNameSpan) {
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files && fileInput.files.length > 0) {
+      fileNameSpan.textContent = fileInput.files[0].name;
+      hasUploadedFile = true;
+    } else {
+      fileNameSpan.textContent = "Choose image";
+      hasUploadedFile = false;
+    }
+  });
+}
+
+// ========= ENCODE BUTTON =========
+
+if (encodeBtn) {
+  encodeBtn.addEventListener("click", async () => {
+    const plain = (textInput?.value || "").trim();
+    const password = (passwordInput?.value || "").trim();
+
+    if (!plain) {
+      alert("Please enter some text to encode.");
+      return;
+    }
+    if (!password) {
+      alert("Please enter a password.");
+      return;
+    }
+
+    try {
+      metaStatus.textContent = "Encrypting...";
+      const payload = await encryptMessage(plain, password);
+      currentPayload = payload;
+      currentSeed = hashStringToSeed(password);
+
+      // restart animation loop
+      if (animationId) cancelAnimationFrame(animationId);
+      startTime = null;
+      if (animationEnabled) {
+        animationLoop(0);
+      } else {
+        renderFrame(0);
+      }
+
+      // Update metadata
+      metaStatus.textContent = "Encoded";
+      showBanner("success", "Encrypted successfully!");
+      metaEncryption.textContent = "AES-GCM + LSB steganography";
+      metaLength.textContent = plain.length.toString();
+      metaSeed.textContent = currentSeed.toFixed(5);
+      metaTime.textContent = new Date().toLocaleString();
+
+      // Clear input fields after encoding
+      if (textInput) textInput.value = "";
+      if (passwordInput) {
+        passwordInput.value = "";
+        passwordInput.type = "password";
+      }
+      if (passwordToggleIcon) {
+        passwordToggleIcon.textContent = "visibility_off";
+      }
+
+      // Optional: clear decoded area & decode password
+      if (decodedTextEl) decodedTextEl.textContent = "";
+      if (decodePasswordInput) decodePasswordInput.value = "";
+    } catch (err) {
+      console.error(err);
+      metaStatus.textContent = "Error during encryption";
+      showBanner("error", "Failed to encrypt message.");
+      alert("Failed to encrypt message.");
+    }
+  });
+}
+
+// ========= SAVE PNG BUTTON =========
+
+if (saveBtn) {
+  saveBtn.addEventListener("click", () => {
+    if (!currentPayload || !latestEmbeddedPixels) {
+      alert("Please encode a message first.");
+      return;
+    }
+
+    const saveCanvas = document.createElement("canvas");
+    saveCanvas.width = w;
+    saveCanvas.height = h;
+    const saveCtx = saveCanvas.getContext("2d");
+
+    const imageData = saveCtx.createImageData(w, h);
+    imageData.data.set(latestEmbeddedPixels);
+    saveCtx.putImageData(imageData, 0, 0);
+
+    const a = document.createElement("a");
+    a.href = saveCanvas.toDataURL("image/png");
+    a.download = "fractal_cipher.png";
+    a.click();
+
+    metaStatus.textContent = "PNG exported";
+    metaTime.textContent = new Date().toLocaleString();
+  });
+}
+
+// ========= DECODE BUTTON =========
+
+if (decodeBtn) {
+  decodeBtn.addEventListener("click", async () => {
+    if (!hasUploadedFile || !fileInput || !fileInput.files || !fileInput.files[0]) {
+      alert("Please upload a PNG fractal first.");
+      return;
+    }
+
+    // Require password again
+    let password = "";
+    if (decodePasswordInput) {
+      password = decodePasswordInput.value.trim();
+      if (!password) {
+        showBanner("error", "Password required to decrypt.");
+        return;
+      }
+    } else {
+      // fallback if decode password input not added in HTML yet
+      password = prompt("Enter password to decrypt:") || "";
+      if (!password.trim()) {
+        alert("Password is required to decrypt.");
+        return;
+      }
+    }
+
+    const file = fileInput.files[0];
+    const img = new Image();
+    img.onload = async () => {
+      try {
+        const decodeCanvas = document.createElement("canvas");
+        decodeCanvas.width = w;
+        decodeCanvas.height = h;
+        const decodeCtx = decodeCanvas.getContext("2d");
+
+        decodeCtx.drawImage(img, 0, 0, w, h);
+        const imageData = decodeCtx.getImageData(0, 0, w, h);
+
+        // Extract embedded payload
+        const payloadBytes = extractPayloadFromPixels(imageData.data);
+
+        // Decrypt with AES-GCM
+        const plaintext = await decryptMessage(payloadBytes, password);
+
+        decodedTextEl.textContent = plaintext;
+        showBanner("success", "Message decrypted!");
+        metaStatus.textContent = "Decoded successfully";
+        metaLength.textContent = plaintext.length.toString();
+        metaTime.textContent = new Date().toLocaleString();
+      } catch (err) {
+        console.error(err);
+        showBanner("error", "Wrong password or corrupted image!");
+        decodedTextEl.textContent = "Wrong password or corrupted image.";
+        metaStatus.textContent = "Decrypt failed";
+        metaTime.textContent = new Date().toLocaleString();
+      }
+    };
+    img.onerror = () => {
+      alert("Failed to load image. Try another PNG.");
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ========= INITIALIZE =========
+
+// Start with some default fractal (no payload yet)
+currentSeed = hashStringToSeed("default-seed");
+metaStatus.textContent = "Idle";
+metaEncryption.textContent = "AES-GCM + LSB steganography";
+metaLength.textContent = "–";
+metaSeed.textContent = "–";
+metaTime.textContent = "–";
+
 updateAnimationToggleUI();
 animationLoop(0);
+
+function showBanner(type, message) {
+    const banner = document.getElementById("floatingBanner");
+    const icon = document.getElementById("floatingBannerIcon");
+    const text = document.getElementById("floatingBannerText");
+
+    // Reset classes
+    banner.classList.remove("hidden", "success", "error", "show");
+
+    text.textContent = message;
+
+    if (type === "success") {
+        banner.classList.add("success");
+        icon.textContent = "check_circle";
+    } else {
+        banner.classList.add("error");
+        icon.textContent = "error";
+    }
+
+    // Show banner
+    setTimeout(() => banner.classList.add("show"), 10);
+
+    // Auto-hide
+    setTimeout(() => {
+        banner.classList.remove("show");
+        setTimeout(() => banner.classList.add("hidden"), 400);
+    }, 3000);
+}

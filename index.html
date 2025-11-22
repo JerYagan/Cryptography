@@ -9,6 +9,12 @@
 </head>
 
 <body>
+    <!-- 🔥 Floating Banner -->
+    <div id="floatingBanner" class="floating-banner hidden">
+        <span id="floatingBannerIcon" class="material-symbols-outlined">check_circle</span>
+        <p id="floatingBannerText">Message</p>
+    </div>
+
     <div class="app-shell">
         <!-- SIDEBAR -->
         <aside class="sidebar">
@@ -67,23 +73,28 @@
 
                 <!-- CONTROLS NEXT -->
                 <section class="card controls">
+
+                    <!-- ================= ENCODE ================= -->
                     <div class="encode-container">
                         <div class="section-header">
                             <h4>Encode</h4>
                             <p class="subtitle">Turn your plain text into an encrypted fractal image.</p>
                         </div>
 
+                        <!-- Plaintext -->
                         <div class="field">
                             <label class="field-label" for="textInput">Plain text</label>
                             <input type="text" id="textInput" class="field-input"
                                 placeholder="Type message to encode..." />
                         </div>
 
+                        <!-- ENCODE PASSWORD FIELD -->
                         <div class="field">
                             <label class="field-label" for="passwordInput">Password</label>
                             <div class="field-input-row">
                                 <input type="password" id="passwordInput" class="field-input"
                                     placeholder="Enter password..." />
+
                                 <button type="button" id="passwordToggle" class="icon-button"
                                     aria-label="Toggle password visibility">
                                     <span class="material-symbols-outlined" id="passwordToggleIcon">
@@ -91,17 +102,15 @@
                                     </span>
                                 </button>
                             </div>
-                            <p class="field-helper">
-                                Used to derive the AES-GCM key and fractal seed. You’ll need the same password to
-                                decode.
-                            </p>
+                            <p class="field-helper">Used to encrypt the message.</p>
                         </div>
 
                         <div class="buttons-group">
                             <button id="encodeBtn">
                                 <span class="material-symbols-outlined">lock</span>
-                                Encode & preview
+                                Encode
                             </button>
+
                             <button id="saveBtn" class="saveBtn">
                                 <span class="material-symbols-outlined">download</span>
                                 Save PNG
@@ -111,18 +120,39 @@
 
                     <div class="divider"></div>
 
+                    <!-- ================= DECODE ================= -->
                     <div class="decode-container">
                         <div class="section-header">
                             <h4>Decode</h4>
                             <p class="subtitle">Load an encoded fractal PNG and recover the hidden text.</p>
                         </div>
 
+                        <!-- Upload -->
                         <label for="fileInput" class="file-label" id="fileLabel">
                             <span class="material-symbols-outlined">upload_file</span>
                             <span class="file-name">Choose image</span>
                         </label>
                         <input type="file" id="fileInput" accept="image/png,image/*" />
 
+                        <!-- DECODE PASSWORD FIELD -->
+                        <div class="field">
+                            <label class="field-label" for="decodePasswordInput">Password</label>
+
+                            <div class="field-input-row">
+                                <input type="password" id="decodePasswordInput" class="field-input"
+                                    placeholder="Enter password..." />
+
+                                <button type="button" id="decodePasswordToggle" class="icon-button">
+                                    <span class="material-symbols-outlined" id="decodePasswordToggleIcon">
+                                        visibility_off
+                                    </span>
+                                </button>
+                            </div>
+
+                            <p class="field-helper">Enter the same password used to encrypt the image.</p>
+                        </div>
+
+                        <!-- Decode button -->
                         <button id="decodeBtn" class="decodeButton">
                             <span class="material-symbols-outlined">scan</span>
                             Decode
@@ -133,7 +163,9 @@
                             <p id="decodedText" class="decoded-text"></p>
                         </div>
                     </div>
+
                 </section>
+
             </div>
             <!-- METADATA AT THE BOTTOM -->
             <section class="card meta-card">
