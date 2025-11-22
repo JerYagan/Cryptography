@@ -81,7 +81,7 @@ ul, li {
 
 .toggle-info {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 0.6rem;
     flex: 1;
 }
@@ -162,6 +162,8 @@ ul, li {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    margin: 0 auto;
+    max-width: 1366px;
 }
 
 .top-grid {
@@ -291,6 +293,7 @@ input[type="password"] {
     border-bottom: 1px solid #80ffdb;
     font-size: 0.9rem;
     padding: 8px 2px;
+    flex: 1;
 }
 
 .field-input:focus,
