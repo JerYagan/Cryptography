@@ -22,7 +22,7 @@
                 <img src="./assets/logo.svg" alt="Fractal Logo" width="40" height="40" />
                 <div>
                     <p class="app-title">Fractal Bloom Cipher</p>
-                    <p class="app-subtitle">AES-GCM encryption baked into fractal art.</p>
+                    <p class="app-subtitle">XOR-based encryption baked into fractal art.</p>
                 </div>
             </div>
 
@@ -45,8 +45,8 @@
 
             <div class="sidebar-footer">
                 <p class="footer-text">
-                    Fractals are rendered in WebGL and the ciphertext is hidden in the pixel LSBs. Exported PNGs look
-                    like normal art but carry your secret.
+                    Fractals are rendered in WebGL and the XOR-encrypted bytes are hidden in the pixel LSBs.
+                    Exported PNGs look like normal art but secretly carry your text.
                 </p>
             </div>
         </aside>
@@ -60,7 +60,7 @@
                         <div>
                             <h4>Fractal preview</h4>
                             <p class="subtitle">
-                                Live WebGL Julia set. When a message is encoded, its ciphertext is embedded in the
+                                Live WebGL Julia set. When a message is encoded, its XOR ciphertext is embedded in the
                                 pixels.
                             </p>
                         </div>
@@ -78,7 +78,7 @@
                     <div class="encode-container">
                         <div class="section-header">
                             <h4>Encode</h4>
-                            <p class="subtitle">Turn your plain text into an encrypted fractal image.</p>
+                            <p class="subtitle">Turn your plain text into a XOR-encrypted fractal image.</p>
                         </div>
 
                         <!-- Plaintext -->
@@ -102,7 +102,7 @@
                                     </span>
                                 </button>
                             </div>
-                            <p class="field-helper">Used to encrypt the message.</p>
+                            <p class="field-helper">Used as the key for the XOR cipher.</p>
                         </div>
 
                         <div class="buttons-group">
@@ -170,7 +170,7 @@
             <!-- METADATA AT THE BOTTOM -->
             <section class="card meta-card">
                 <h4>Cipher metadata</h4>
-                <p class="subtitle">Snapshot of the latest encode/decode operation.</p>
+                <p class="subtitle">Snapshot of the latest XOR encode/decode operation.</p>
 
                 <div class="meta-grid">
                     <div class="meta-item">
@@ -178,8 +178,8 @@
                         <p class="meta-value" id="metaStatus">Idle</p>
                     </div>
                     <div class="meta-item">
-                        <p class="meta-label">Encryption</p>
-                        <p class="meta-value" id="metaEncryption">AES-GCM + LSB steganography</p>
+                        <p class="meta-label">Cipher</p>
+                        <p class="meta-value" id="metaEncryption">XOR cipher + LSB steganography</p>
                     </div>
                     <div class="meta-item">
                         <p class="meta-label">Message length</p>
@@ -201,7 +201,8 @@
 
                 <h4>How Fractal Bloom Cipher Works</h4>
                 <p class="subtitle">
-                    A simple walkthrough of how your message becomes a fractal image — and how it's recovered.
+                    A simple walkthrough of how your message becomes a XOR-encrypted fractal image — and how it's
+                    recovered.
                 </p>
 
                 <!-- FLOW DIAGRAM -->
@@ -222,14 +223,14 @@
 
                     <div class="flow-item">
                         <span class="material-symbols-outlined flow-icon">lock</span>
-                        <p>AES-GCM</p>
+                        <p>XOR Cipher</p>
                     </div>
 
                     <div class="flow-arrow"></div>
 
                     <div class="flow-item">
                         <span class="material-symbols-outlined flow-icon">data_object</span>
-                        <p>Ciphertext</p>
+                        <p>Encrypted bytes</p>
                     </div>
 
                     <div class="flow-arrow"></div>
@@ -253,66 +254,73 @@
                     <div class="how-item">
                         <p class="how-title">1. Text → Bytes</p>
                         <p class="how-desc">
-                            Your message is turned into raw bytes. This is the basic data used in cryptography.
+                            Your message is converted into raw bytes using UTF-8. This is the basic form cryptography
+                            operates on.
                         </p>
                     </div>
 
                     <div class="how-item">
-                        <p class="how-title">2. Password → AES Key</p>
+                        <p class="how-title">2. Password → Key Stream</p>
                         <p class="how-desc">
-                            Your password is stretched with PBKDF2 (slow hashing) to generate a strong AES-256 key.
+                            Your password is turned into bytes and repeated to match the message length. This acts as a
+                            simple key stream.
                         </p>
                     </div>
 
                     <div class="how-item">
-                        <p class="how-title">3. AES-GCM Encryption</p>
+                        <p class="how-title">3. XOR Encryption</p>
                         <p class="how-desc">
-                            The bytes are encrypted into ciphertext. Without the exact password, decryption fails.
+                            Each message byte is XOR’ed with a password byte. The result is unreadable without the same
+                            password.
                         </p>
                     </div>
 
                     <div class="how-item">
                         <p class="how-title">4. Password → Seed</p>
                         <p class="how-desc">
-                            The password also generates a fractal seed, affecting the fractal’s shape & motion.
+                            The password is also hashed into a numeric seed, which controls the Julia fractal’s
+                            structure and motion.
                         </p>
                     </div>
 
                     <div class="how-item">
                         <p class="how-title">5. Render Fractal</p>
                         <p class="how-desc">
-                            WebGL draws a smooth neon Julia fractal. Still clean — no message hidden yet.
+                            WebGL draws a smooth neon Julia fractal on the canvas using the password-derived seed.
+                            Still clean — no data hidden yet.
                         </p>
                     </div>
 
                     <div class="how-item">
                         <p class="how-title">6. Hide Data in Pixels</p>
                         <p class="how-desc">
-                            Hidden using tiny changes in pixel bits (LSB steganography). Looks identical to the eye.
+                            The encrypted bytes are embedded into the least significant bits (LSBs) of pixel colors.
+                            The image still looks identical to the eye.
                         </p>
                     </div>
 
                     <div class="how-item">
                         <p class="how-title">7. Save PNG</p>
                         <p class="how-desc">
-                            The fractal PNG now carries encrypted bytes invisibly inside its pixel data.
+                            The fractal PNG now carries XOR-encrypted bytes invisibly in its pixel data. You can share
+                            it like normal art.
                         </p>
                     </div>
 
                     <div class="how-item">
                         <p class="how-title">8. Decode + Decrypt</p>
                         <p class="how-desc">
-                            Extracts hidden bytes → decrypts with AES-GCM → returns your original message.
+                            The app reads the LSBs, reconstructs the encrypted bytes, then XOR-decrypts them with the
+                            password to recover your original text.
                         </p>
                     </div>
 
                 </div>
 
                 <p class="how-footer">
-                    In short: <strong>your message is encrypted, then hidden inside a fractal image</strong>.
-                    Only the correct password can unlock it.
+                    In short: <strong>your message is XOR-encrypted, then hidden inside a fractal image</strong>.
+                    Only the correct password can reverse the XOR and reveal the text.
                 </p>
-
 
                 <!-- ADVANCED TECH SECTION -->
                 <details class="advanced-card">
@@ -320,51 +328,58 @@
 
                     <div class="advanced-content">
 
-                        <h5>🔐 AES-GCM Encryption</h5>
+                        <h5>🔐 XOR Cipher</h5>
                         <p>
-                            AES-GCM provides confidentiality + integrity.
-                            The ciphertext includes:
+                            The cipher uses a simple XOR operation between message bytes and password bytes:
                         </p>
                         <ul>
-                            <li>16-byte PBKDF2 salt</li>
-                            <li>12-byte random IV</li>
-                            <li>Encrypted bytes + auth tag</li>
+                            <li>Password is encoded as bytes and repeated to match the message length.</li>
+                            <li>Each plaintext byte is XOR’ed with the corresponding password byte.</li>
+                            <li>Decrypting runs the same XOR again with the same password.</li>
                         </ul>
 
-                        <h5>🧬 Password Key Derivation (PBKDF2)</h5>
+                        <h5>🧬 Password-Derived Seed</h5>
                         <p>
-                            Your password is strengthened with 100,000 PBKDF2 iterations using SHA-256.
-                            This prevents brute-force attacks and keeps encryption consistent.
-                        </p>
-
-                        <h5>🎨 Fractal Seed</h5>
-                        <p>
-                            The password also generates a deterministic seed which controls the Julia fractal:
+                            The password is hashed into a float seed value in [0,1], which controls the Julia fractal:
                         </p>
                         <ul>
-                            <li>Zoom & rotation</li>
-                            <li>Offset motion</li>
-                            <li>Color oscillation</li>
+                            <li>Base complex parameter <code>c</code> of the fractal</li>
+                            <li>Subtle motion, zoom, and rotation over time</li>
+                            <li>Color oscillations and palette blending</li>
                         </ul>
+
+                        <h5>🎨 Fractal Rendering</h5>
+                        <p>
+                            A WebGL fragment shader iterates the Julia set formula for each pixel and colors it using a
+                            Turbo colormap plus neon domain coloring.
+                        </p>
 
                         <h5>🖼 LSB Steganography</h5>
                         <p>
-                            Encrypted bytes are hidden inside pixel RGB LSB bits:
+                            Encrypted bytes are hidden inside the RGB channels of pixels by modifying only the least
+                            significant bit:
                         </p>
-                        <pre class="code">pixel.r = (pixel.r & 0xFE) | bit</pre>
+                        <pre class="code">pixel.r = (pixel.r & 0xFE) | bit;</pre>
                         <p>
-                            Human eyes cannot detect LSB changes, preserving the natural look of the fractal.
+                            Because only the last bit is changed, the visual color difference is imperceptible to human
+                            eyes.
                         </p>
 
-                        <h5>📦 Pixel Data Structure</h5>
+                        <h5>📦 Pixel Data Layout</h5>
                         <p>
-                            The first 32 bits store the encrypted payload length, followed by the ciphertext bits.
+                            The first 32 bits embedded in the pixels store the length of the encrypted payload.
+                            The remaining bits store the XOR ciphertext bytes.
                         </p>
 
-                        <h5>📥 Decoding</h5>
+                        <h5>📥 Decoding Flow</h5>
                         <p>
-                            Pixel bits → collect encrypted bytes → AES-GCM decrypt → original plaintext restored.
+                            On decode, the app:
                         </p>
+                        <ul>
+                            <li>Reads pixel LSBs and reconstructs the embedded bytes.</li>
+                            <li>Uses the user-provided password to XOR-decrypt the bytes.</li>
+                            <li>Converts the result back to UTF-8 text.</li>
+                        </ul>
                     </div>
                 </details>
             </section>

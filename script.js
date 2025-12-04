@@ -24,7 +24,7 @@ const fileInput = document.getElementById("fileInput");
 const fileNameSpan = document.querySelector(".file-name");
 const decodedTextEl = document.getElementById("decodedText");
 
-// Optional decode password (if you add it in HTML)
+// Decode password
 const decodePasswordInput = document.getElementById("decodePasswordInput");
 const decodePasswordToggle = document.getElementById("decodePasswordToggle");
 const decodePasswordToggleIcon = document.getElementById("decodePasswordToggleIcon");
@@ -54,7 +54,7 @@ const vertexShaderSource = `
   }
 `;
 
-// Smooth, neon Julia shader (Option A)
+// Smooth, neon Julia shader
 const fragmentShaderSource = `
 precision highp float;
 
@@ -229,14 +229,6 @@ const timeLocation = gl.getUniformLocation(program, "u_time");
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-function textToBytes(str) {
-  return textEncoder.encode(str);
-}
-
-function bytesToText(bytes) {
-  return textDecoder.decode(bytes);
-}
-
 function bytesToBits(bytes) {
   const bits = [];
   for (let b of bytes) {
@@ -266,6 +258,31 @@ function hashStringToSeed(str) {
     hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
   }
   return hash / 0xffffffff;
+}
+
+// ========= SIMPLE XOR CIPHER =========
+
+// Encrypt plaintext → Uint8Array of XOR ciphertext
+function xorEncryptMessage(plaintext, password) {
+  const textBytes = textEncoder.encode(plaintext);
+  const passBytes = textEncoder.encode(password);
+  const out = new Uint8Array(textBytes.length);
+
+  for (let i = 0; i < textBytes.length; i++) {
+    out[i] = textBytes[i] ^ passBytes[i % passBytes.length];
+  }
+  return out;
+}
+
+// Decrypt Uint8Array payload → plaintext string
+function xorDecryptMessage(payloadBytes, password) {
+  const passBytes = textEncoder.encode(password);
+  const out = new Uint8Array(payloadBytes.length);
+
+  for (let i = 0; i < payloadBytes.length; i++) {
+    out[i] = payloadBytes[i] ^ passBytes[i % passBytes.length];
+  }
+  return textDecoder.decode(out);
 }
 
 // ========= STEGO: EMBED / EXTRACT =========
@@ -343,84 +360,6 @@ function extractPayloadFromPixels(pixels) {
   return payloadBytes;
 }
 
-// ========= CRYPTO: AES-GCM + PBKDF2 =========
-
-const SALT_LEN = 16;
-const IV_LEN = 12;
-const PBKDF2_ITER = 100000;
-
-function getRandomBytes(len) {
-  const arr = new Uint8Array(len);
-  crypto.getRandomValues(arr);
-  return arr;
-}
-
-async function deriveKey(password, salt) {
-  const pwBytes = textToBytes(password);
-  const baseKey = await crypto.subtle.importKey(
-    "raw",
-    pwBytes,
-    { name: "PBKDF2" },
-    false,
-    ["deriveKey"]
-  );
-
-  const key = await crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: PBKDF2_ITER,
-      hash: "SHA-256",
-    },
-    baseKey,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
-  return key;
-}
-
-// Encrypt plaintext → Uint8Array [salt | iv | ciphertext]
-async function encryptMessage(plaintext, password) {
-  const salt = getRandomBytes(SALT_LEN);
-  const iv = getRandomBytes(IV_LEN);
-  const key = await deriveKey(password, salt);
-
-  const data = textToBytes(plaintext);
-  const ciphertextBuf = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    data
-  );
-
-  const ciphertext = new Uint8Array(ciphertextBuf);
-  const out = new Uint8Array(SALT_LEN + IV_LEN + ciphertext.length);
-  out.set(salt, 0);
-  out.set(iv, SALT_LEN);
-  out.set(ciphertext, SALT_LEN + IV_LEN);
-  return out;
-}
-
-// Decrypt Uint8Array [salt | iv | ciphertext] → plaintext string
-async function decryptMessage(payload, password) {
-  if (payload.length <= SALT_LEN + IV_LEN) {
-    throw new Error("Invalid payload");
-  }
-
-  const salt = payload.slice(0, SALT_LEN);
-  const iv = payload.slice(SALT_LEN, SALT_LEN + IV_LEN);
-  const ciphertext = payload.slice(SALT_LEN + IV_LEN);
-
-  const key = await deriveKey(password, salt);
-  const plaintextBuf = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    key,
-    ciphertext
-  );
-
-  return bytesToText(new Uint8Array(plaintextBuf));
-}
-
 // ========= FRACTAL RENDERING =========
 
 let animationId = null;
@@ -428,7 +367,7 @@ let startTime = null;
 let animationEnabled = true;
 
 let currentSeed = 0;
-let currentPayload = null; // Uint8Array of encrypted data
+let currentPayload = null; // Uint8Array of XOR ciphertext
 let latestEmbeddedPixels = null;
 
 // Offscreen canvas for stego preview / saving
@@ -509,7 +448,7 @@ if (passwordToggle && passwordToggleIcon) {
   });
 }
 
-// Decode password eye toggle (optional, only if field exists)
+// Decode password eye toggle
 if (decodePasswordToggle && decodePasswordToggleIcon && decodePasswordInput) {
   decodePasswordToggle.addEventListener("click", () => {
     decodePasswordInput.type =
@@ -539,11 +478,9 @@ if (animationToggle) {
     updateAnimationToggleUI();
 
     if (animationEnabled) {
-      // restart loop
       startTime = null;
       if (!animationId) animationLoop(0);
     } else {
-      // stop loop & render static frame
       if (animationId) {
         cancelAnimationFrame(animationId);
         animationId = null;
@@ -585,7 +522,7 @@ if (fileInput && fileNameSpan) {
 // ========= ENCODE BUTTON =========
 
 if (encodeBtn) {
-  encodeBtn.addEventListener("click", async () => {
+  encodeBtn.addEventListener("click", () => {
     const plain = (textInput?.value || "").trim();
     const password = (passwordInput?.value || "").trim();
 
@@ -599,8 +536,8 @@ if (encodeBtn) {
     }
 
     try {
-      metaStatus.textContent = "Encrypting...";
-      const payload = await encryptMessage(plain, password);
+      metaStatus.textContent = "Encrypting with XOR...";
+      const payload = xorEncryptMessage(plain, password);
       currentPayload = payload;
       currentSeed = hashStringToSeed(password);
 
@@ -615,8 +552,8 @@ if (encodeBtn) {
 
       // Update metadata
       metaStatus.textContent = "Encoded";
-      showBanner("success", "Encrypted successfully!");
-      metaEncryption.textContent = "AES-GCM + LSB steganography";
+      showBanner("success", "XOR-encrypted and embedded successfully!");
+      metaEncryption.textContent = "XOR cipher + LSB steganography";
       metaLength.textContent = plain.length.toString();
       metaSeed.textContent = currentSeed.toFixed(5);
       metaTime.textContent = new Date().toLocaleString();
@@ -636,7 +573,7 @@ if (encodeBtn) {
       if (decodePasswordInput) decodePasswordInput.value = "";
     } catch (err) {
       console.error(err);
-      metaStatus.textContent = "Error during encryption";
+      metaStatus.textContent = "Error during XOR encryption";
       showBanner("error", "Failed to encrypt message.");
       alert("Failed to encrypt message.");
     }
@@ -674,27 +611,16 @@ if (saveBtn) {
 // ========= DECODE BUTTON =========
 
 if (decodeBtn) {
-  decodeBtn.addEventListener("click", async () => {
+  decodeBtn.addEventListener("click", () => {
     if (!hasUploadedFile || !fileInput || !fileInput.files || !fileInput.files[0]) {
       alert("Please upload a PNG fractal first.");
       return;
     }
 
-    // Require password again
-    let password = "";
-    if (decodePasswordInput) {
-      password = decodePasswordInput.value.trim();
-      if (!password) {
-        showBanner("error", "Password required to decrypt.");
-        return;
-      }
-    } else {
-      // fallback if decode password input not added in HTML yet
-      password = prompt("Enter password to decrypt:") || "";
-      if (!password.trim()) {
-        alert("Password is required to decrypt.");
-        return;
-      }
+    const password = (decodePasswordInput?.value || "").trim();
+    if (!password) {
+      showBanner("error", "Password required to decrypt.");
+      return;
     }
 
     const file = fileInput.files[0];
@@ -712,13 +638,22 @@ if (decodeBtn) {
         // Extract embedded payload
         const payloadBytes = extractPayloadFromPixels(imageData.data);
 
-        // Decrypt with AES-GCM
-        const plaintext = await decryptMessage(payloadBytes, password);
+        // XOR decrypt
+        let plaintext;
+        try {
+          plaintext = xorDecryptMessage(payloadBytes, password);
+        } catch (e) {
+          showBanner("error", "Failed to decode text.");
+          decodedTextEl.textContent = "Failed to decode text.";
+          metaStatus.textContent = "Decrypt failed";
+          metaTime.textContent = new Date().toLocaleString();
+          return;
+        }
 
-        decodedTextEl.textContent = plaintext;
+        decodedTextEl.textContent = plaintext || "[Empty / invalid text]";
         showBanner("success", "Message decrypted!");
         metaStatus.textContent = "Decoded successfully";
-        metaLength.textContent = plaintext.length.toString();
+        metaLength.textContent = (plaintext || "").length.toString();
         metaTime.textContent = new Date().toLocaleString();
       } catch (err) {
         console.error(err);
@@ -740,7 +675,7 @@ if (decodeBtn) {
 // Start with some default fractal (no payload yet)
 currentSeed = hashStringToSeed("default-seed");
 metaStatus.textContent = "Idle";
-metaEncryption.textContent = "AES-GCM + LSB steganography";
+metaEncryption.textContent = "XOR cipher + LSB steganography";
 metaLength.textContent = "–";
 metaSeed.textContent = "–";
 metaTime.textContent = "–";
@@ -749,29 +684,29 @@ updateAnimationToggleUI();
 animationLoop(0);
 
 function showBanner(type, message) {
-    const banner = document.getElementById("floatingBanner");
-    const icon = document.getElementById("floatingBannerIcon");
-    const text = document.getElementById("floatingBannerText");
+  const banner = document.getElementById("floatingBanner");
+  const icon = document.getElementById("floatingBannerIcon");
+  const text = document.getElementById("floatingBannerText");
 
-    // Reset classes
-    banner.classList.remove("hidden", "success", "error", "show");
+  // Reset classes
+  banner.classList.remove("hidden", "success", "error", "show");
 
-    text.textContent = message;
+  text.textContent = message;
 
-    if (type === "success") {
-        banner.classList.add("success");
-        icon.textContent = "check_circle";
-    } else {
-        banner.classList.add("error");
-        icon.textContent = "error";
-    }
+  if (type === "success") {
+    banner.classList.add("success");
+    icon.textContent = "check_circle";
+  } else {
+    banner.classList.add("error");
+    icon.textContent = "error";
+  }
 
-    // Show banner
-    setTimeout(() => banner.classList.add("show"), 10);
+  // Show banner
+  setTimeout(() => banner.classList.add("show"), 10);
 
-    // Auto-hide
-    setTimeout(() => {
-        banner.classList.remove("show");
-        setTimeout(() => banner.classList.add("hidden"), 400);
-    }, 3000);
+  // Auto-hide
+  setTimeout(() => {
+    banner.classList.remove("show");
+    setTimeout(() => banner.classList.add("hidden"), 400);
+  }, 3000);
 }
